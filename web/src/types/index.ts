@@ -99,6 +99,23 @@ export interface PipelineStage {
   updatedAt: string;
 }
 
+// AI 生成任务类型
+export type AITaskType = 'generate_script' | 'generate_assets' | 'generate_episode' | 'refine_prompt';
+
+export interface AIGenerateRequest {
+  taskType: AITaskType;
+  projectId: number;
+  storyText?: string;
+  episodeNumber?: number;
+  existingPrompt?: string;
+  timeSlotIndex?: number;
+}
+
+export interface AIStreamEvent {
+  type: 'delta' | 'complete' | 'error' | 'status';
+  data: string;
+}
+
 // Markdown 解析结果
 export interface ParsedScript {
   title: string;

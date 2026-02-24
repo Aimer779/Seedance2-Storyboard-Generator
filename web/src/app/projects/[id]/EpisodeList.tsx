@@ -3,14 +3,16 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   Card, List, Tag, Typography, Spin, Empty, message, Button, Space,
-  Input, Select, Popconfirm,
+  Input, Select, Popconfirm, Drawer, Tooltip,
 } from 'antd';
 import {
   CopyOutlined, SoundOutlined,
   CameraOutlined, ClockCircleOutlined,
   EditOutlined, SaveOutlined, CloseOutlined,
-  PlusOutlined, DeleteOutlined,
+  PlusOutlined, DeleteOutlined, RobotOutlined,
 } from '@ant-design/icons';
+import { useClaudeStream } from '@/hooks/useClaudeStream';
+import GenerationPanel from '@/components/claude/GenerationPanel';
 
 const { Text, Paragraph, Title } = Typography;
 const { TextArea } = Input;
@@ -86,6 +88,16 @@ export default function EpisodeList({ projectId, projectName }: { projectId: str
   const [editSoundDesign, setEditSoundDesign] = useState('');
   const [editReferenceList, setEditReferenceList] = useState('');
   const [editEndFrame, setEditEndFrame] = useState('');
+
+  // AI Generation state
+  const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
+  const [aiTargetEp, setAiTargetEp] = useState<number | null>(null);
+  const claude = useClaudeStream();
+
+  // AI Refine state
+  const [refineDrawerOpen, setRefineDrawerOpen] = useState(false);
+  const [refineSlotIndex, setRefineSlotIndex] = useState<number | null>(null);
+  const refine = useClaudeStream();
 
   const fetchEpisodes = useCallback(async () => {
     try {
@@ -211,6 +223,55 @@ export default function EpisodeList({ projectId, projectName }: { projectId: str
     }
   };
 
+  // AI Generation handlers
+  const handleAiGenerateEpisode = async (epNumber: number) => {
+    setAiTargetEp(epNumber);
+    setAiDrawerOpen(true);
+    claude.reset();
+    await claude.generate({
+      taskType: 'generate_episode',
+      projectId: parseInt(projectId),
+      episodeNumber: epNumber,
+    });
+  };
+
+  const handleAiApply = () => {
+    setAiDrawerOpen(false);
+    claude.reset();
+    message.success('分镜已应用到项目');
+    fetchEpisodes();
+    if (aiTargetEp) loadEpisodeDetail(aiTargetEp);
+  };
+
+  // AI Refine handlers
+  const handleRefinePrompt = async (slotIndex: number) => {
+    if (!editing) return;
+    const slot = editTimeSlots[slotIndex];
+    if (!slot?.description) {
+      message.warning('该时段没有描述内容可以优化');
+      return;
+    }
+    setRefineSlotIndex(slotIndex);
+    setRefineDrawerOpen(true);
+    refine.reset();
+    await refine.generate({
+      taskType: 'refine_prompt',
+      projectId: parseInt(projectId),
+      existingPrompt: slot.description,
+    });
+  };
+
+  const handleRefineApply = () => {
+    if (refineSlotIndex !== null && refine.streamedText) {
+      const updated = [...editTimeSlots];
+      updated[refineSlotIndex] = { ...updated[refineSlotIndex], description: refine.streamedText.trim() };
+      setEditTimeSlots(updated);
+      message.success('优化文本已应用');
+    }
+    setRefineDrawerOpen(false);
+    refine.reset();
+  };
+
   // Asset slot helpers
   const addAssetSlot = () => {
     const maxSlot = editAssetSlots.reduce((max, s) => Math.max(max, s.slotNumber), 0);
@@ -284,18 +345,27 @@ export default function EpisodeList({ projectId, projectName }: { projectId: str
                   <Tag color="blue">E{String(ep.episodeNumber).padStart(2, '0')}</Tag>
                   <Text strong>{ep.title}</Text>
                 </Space>
-                <Popconfirm
-                  title="确认删除此分镜？"
-                  onConfirm={(e) => { e?.stopPropagation(); deleteEpisode(ep.episodeNumber); }}
-                  onCancel={(e) => e?.stopPropagation()}
-                  okText="删除" cancelText="取消" okButtonProps={{ danger: true }}
-                >
-                  <Button
-                    type="text" size="small" danger
-                    icon={<DeleteOutlined />}
-                    onClick={e => e.stopPropagation()}
-                  />
-                </Popconfirm>
+                <Space size={4}>
+                  <Tooltip title="AI 生成分镜">
+                    <Button
+                      type="text" size="small"
+                      icon={<RobotOutlined />}
+                      onClick={e => { e.stopPropagation(); handleAiGenerateEpisode(ep.episodeNumber); }}
+                    />
+                  </Tooltip>
+                  <Popconfirm
+                    title="确认删除此分镜？"
+                    onConfirm={(e) => { e?.stopPropagation(); deleteEpisode(ep.episodeNumber); }}
+                    onCancel={(e) => e?.stopPropagation()}
+                    okText="删除" cancelText="取消" okButtonProps={{ danger: true }}
+                  >
+                    <Button
+                      type="text" size="small" danger
+                      icon={<DeleteOutlined />}
+                      onClick={e => e.stopPropagation()}
+                    />
+                  </Popconfirm>
+                </Space>
               </div>
             </List.Item>
           )}
@@ -333,6 +403,9 @@ export default function EpisodeList({ projectId, projectName }: { projectId: str
                   </>
                 ) : (
                   <>
+                    <Button icon={<RobotOutlined />} onClick={() => handleAiGenerateEpisode(selectedEp.episodeNumber)}>
+                      AI 生成
+                    </Button>
                     <Button icon={<EditOutlined />} onClick={startEditing}>编辑</Button>
                     <Button icon={<CopyOutlined />} onClick={() => copyPrompt(selectedEp.episodeNumber)}>
                       复制 Prompt
@@ -427,6 +500,15 @@ export default function EpisodeList({ projectId, projectName }: { projectId: str
                           allowClear
                           options={cameraOptions.map(opt => ({ label: opt, value: opt }))}
                         />
+                        <Tooltip title="AI 优化此时段">
+                          <Button
+                            type="text"
+                            size="small"
+                            icon={<RobotOutlined />}
+                            onClick={() => handleRefinePrompt(i)}
+                            disabled={!slot.description}
+                          />
+                        </Tooltip>
                       </div>
                       <TextArea
                         value={slot.description}
@@ -519,6 +601,44 @@ export default function EpisodeList({ projectId, projectName }: { projectId: str
           </div>
         )}
       </div>
+
+      {/* AI 生成分镜 Drawer */}
+      <Drawer
+        title={`AI 生成分镜 E${aiTargetEp ? String(aiTargetEp).padStart(2, '0') : '--'}`}
+        open={aiDrawerOpen}
+        onClose={() => { setAiDrawerOpen(false); claude.abort(); }}
+        width={640}
+        destroyOnClose
+      >
+        <GenerationPanel
+          streamedText={claude.streamedText}
+          isGenerating={claude.isGenerating}
+          error={claude.error}
+          status={claude.status}
+          onAbort={claude.abort}
+          onApply={handleAiApply}
+          title="分镜脚本生成"
+        />
+      </Drawer>
+
+      {/* AI 优化 Prompt Drawer */}
+      <Drawer
+        title={`AI 优化时段描述 (${refineSlotIndex !== null ? `${refineSlotIndex * 3}-${refineSlotIndex * 3 + 3}s` : ''})`}
+        open={refineDrawerOpen}
+        onClose={() => { setRefineDrawerOpen(false); refine.abort(); }}
+        width={640}
+        destroyOnClose
+      >
+        <GenerationPanel
+          streamedText={refine.streamedText}
+          isGenerating={refine.isGenerating}
+          error={refine.error}
+          status={refine.status}
+          onAbort={refine.abort}
+          onApply={handleRefineApply}
+          title="Prompt 优化"
+        />
+      </Drawer>
     </div>
   );
 }

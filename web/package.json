@@ -11,6 +11,8 @@
   "dependencies": {
     "@ant-design/cssinjs": "^2.1.0",
     "@ant-design/icons": "^6.1.0",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.52",
+    "@anthropic-ai/sdk": "^0.78.0",
     "@uiw/react-md-editor": "^4.0.11",
     "antd": "^6.3.0",
     "better-sqlite3": "^12.6.2",

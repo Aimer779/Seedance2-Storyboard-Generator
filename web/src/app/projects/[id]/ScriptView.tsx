@@ -1,9 +1,11 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { Card, Spin, Empty, Typography, Tag, Button, Input, Space, message } from 'antd';
-import { EditOutlined, SaveOutlined, CloseOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Card, Spin, Empty, Typography, Tag, Button, Input, Space, message, Drawer } from 'antd';
+import { EditOutlined, SaveOutlined, CloseOutlined, PlusOutlined, DeleteOutlined, RobotOutlined } from '@ant-design/icons';
 import dynamic from 'next/dynamic';
+import { useClaudeStream } from '@/hooks/useClaudeStream';
+import GenerationPanel from '@/components/claude/GenerationPanel';
 
 const MDEditor = dynamic(() => import('@uiw/react-md-editor'), { ssr: false });
 const MDPreview = dynamic(() => import('@uiw/react-md-editor').then(mod => mod.default.Markdown), { ssr: false });
@@ -39,6 +41,11 @@ export default function ScriptView({ projectId }: { projectId: string }) {
 
   // Raw markdown editing state
   const [editMarkdown, setEditMarkdown] = useState('');
+
+  // AI Generation state
+  const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
+  const [storyText, setStoryText] = useState('');
+  const claude = useClaudeStream();
 
   const fetchScript = useCallback(async () => {
     setLoading(true);
@@ -99,6 +106,27 @@ export default function ScriptView({ projectId }: { projectId: string }) {
     }
   };
 
+  // AI Generation
+  const handleGenerate = async () => {
+    if (!storyText.trim()) {
+      message.warning('请输入故事文本或大纲');
+      return;
+    }
+    await claude.generate({
+      taskType: 'generate_script',
+      projectId: parseInt(projectId),
+      storyText,
+    });
+  };
+
+  const handleApply = () => {
+    setAiDrawerOpen(false);
+    claude.reset();
+    setStoryText('');
+    message.success('剧本已应用到项目');
+    fetchScript();
+  };
+
   // Episode editing helpers
   const updateEpisode = (index: number, field: keyof ScriptEpisode, value: unknown) => {
     const updated = [...editEpisodes];
@@ -143,7 +171,57 @@ export default function ScriptView({ projectId }: { projectId: string }) {
   };
 
   if (loading) return <div style={{ textAlign: 'center', padding: 60 }}><Spin /></div>;
-  if (!script) return <Empty description="暂无剧本" />;
+  if (!script) return (
+    <div style={{ textAlign: 'center', padding: 60 }}>
+      <Empty description="暂无剧本" />
+      <Button
+        type="primary"
+        icon={<RobotOutlined />}
+        onClick={() => setAiDrawerOpen(true)}
+        style={{ marginTop: 16 }}
+      >
+        AI 生成剧本
+      </Button>
+      <Drawer
+        title="AI 生成剧本"
+        open={aiDrawerOpen}
+        onClose={() => { setAiDrawerOpen(false); claude.abort(); }}
+        width={640}
+        destroyOnClose
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Text strong>输入故事文本或大纲：</Text>
+          <TextArea
+            value={storyText}
+            onChange={e => setStoryText(e.target.value)}
+            rows={8}
+            placeholder="请输入故事内容、小说片段或剧情大纲..."
+            style={{ marginTop: 8 }}
+            disabled={claude.isGenerating}
+          />
+        </div>
+        <Button
+          type="primary"
+          icon={<RobotOutlined />}
+          onClick={handleGenerate}
+          loading={claude.isGenerating}
+          disabled={!storyText.trim()}
+          style={{ marginBottom: 16 }}
+        >
+          开始生成
+        </Button>
+        <GenerationPanel
+          streamedText={claude.streamedText}
+          isGenerating={claude.isGenerating}
+          error={claude.error}
+          status={claude.status}
+          onAbort={claude.abort}
+          onApply={handleApply}
+          title="剧本生成"
+        />
+      </Drawer>
+    </div>
+  );
 
   const toneColors: Record<string, string> = {
     '孤寂压抑': '#8c8c8c',
@@ -173,6 +251,9 @@ export default function ScriptView({ projectId }: { projectId: string }) {
           </Tag>
         </div>
         <Space>
+          <Button icon={<RobotOutlined />} onClick={() => setAiDrawerOpen(true)}>
+            AI 生成剧本
+          </Button>
           {editing ? (
             <>
               <Button icon={<CloseOutlined />} onClick={cancelEditing}>取消</Button>
@@ -311,6 +392,46 @@ export default function ScriptView({ projectId }: { projectId: string }) {
           )}
         </div>
       )}
+
+      {/* AI Generation Drawer */}
+      <Drawer
+        title="AI 生成剧本"
+        open={aiDrawerOpen}
+        onClose={() => { setAiDrawerOpen(false); claude.abort(); }}
+        width={640}
+        destroyOnClose
+      >
+        <div style={{ marginBottom: 16 }}>
+          <Text strong>输入故事文本或大纲：</Text>
+          <TextArea
+            value={storyText}
+            onChange={e => setStoryText(e.target.value)}
+            rows={8}
+            placeholder="请输入故事内容、小说片段或剧情大纲..."
+            style={{ marginTop: 8 }}
+            disabled={claude.isGenerating}
+          />
+        </div>
+        <Button
+          type="primary"
+          icon={<RobotOutlined />}
+          onClick={handleGenerate}
+          loading={claude.isGenerating}
+          disabled={!storyText.trim()}
+          style={{ marginBottom: 16 }}
+        >
+          开始生成
+        </Button>
+        <GenerationPanel
+          streamedText={claude.streamedText}
+          isGenerating={claude.isGenerating}
+          error={claude.error}
+          status={claude.status}
+          onAbort={claude.abort}
+          onApply={handleApply}
+          title="剧本生成"
+        />
+      </Drawer>
     </div>
   );
 }

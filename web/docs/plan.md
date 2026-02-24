@@ -168,7 +168,7 @@ Markdown 双向同步策略：GUI 修改 → 更新 SQLite → 写回 Markdown �
 
 ## 分阶段实施
 
-### Phase 1: MVP — 数据展示
+### Phase 1: MVP — 数据展示 ✅
 - 初始化 Next.js + Ant Design + Drizzle + SQLite 项目
 - 实现 Markdown 解析器（三种格式）
 - 项目导入 API（扫描文件系统 → 解析 → 入库）
@@ -176,14 +176,14 @@ Markdown 双向同步策略：GUI 修改 → 更新 SQLite → 写回 Markdown �
 - 素材浏览页（分类 + 图片展示）
 - 分镜只读预览（时间轴可视化）
 
-### Phase 2: 编辑能力
+### Phase 2: 编辑能力 ✅
 - Markdown 序列化器（结构化数据 → Markdown 回写）
 - 剧本编辑器（可视化 + 原始 Markdown 双模式）
 - 素材编辑、图片上传
 - 分镜时间轴编辑器
 - 新建项目向导
 
-### Phase 3: AI 集成
+### Phase 3: AI 集成 ✅
 - Claude Agent SDK 封装 + SSE 流式端点
 - 从故事生成剧本、素材清单、分镜脚本
 - AI 优化 Prompt 功能

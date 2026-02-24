@@ -3,12 +3,14 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   Card, Tag, Segmented, Empty, Spin, Typography, Space, Tooltip, message,
-  Button, Modal, Form, Input, Select, Upload,
+  Button, Modal, Form, Input, Select, Upload, Drawer,
 } from 'antd';
 import {
   CopyOutlined, UserOutlined, EnvironmentOutlined, ToolOutlined,
-  EditOutlined, DeleteOutlined, PlusOutlined, UploadOutlined,
+  EditOutlined, DeleteOutlined, PlusOutlined, UploadOutlined, RobotOutlined,
 } from '@ant-design/icons';
+import { useClaudeStream } from '@/hooks/useClaudeStream';
+import GenerationPanel from '@/components/claude/GenerationPanel';
 
 const { Text, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -42,6 +44,10 @@ export default function AssetList({ projectId }: { projectId: string }) {
   const [editingAsset, setEditingAsset] = useState<AssetItem | null>(null);
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
+
+  // AI Generation state
+  const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
+  const claude = useClaudeStream();
 
   const fetchAssets = useCallback(async () => {
     try {
@@ -174,6 +180,22 @@ export default function AssetList({ projectId }: { projectId: string }) {
     }
   };
 
+  // AI Generation
+  const handleAiGenerate = async () => {
+    setAiDrawerOpen(true);
+    await claude.generate({
+      taskType: 'generate_assets',
+      projectId: parseInt(projectId),
+    });
+  };
+
+  const handleAiApply = () => {
+    setAiDrawerOpen(false);
+    claude.reset();
+    message.success('素材清单已应用到项目');
+    fetchAssets();
+  };
+
   if (loading) return <div style={{ textAlign: 'center', padding: 60 }}><Spin /></div>;
 
   return (
@@ -190,9 +212,14 @@ export default function AssetList({ projectId }: { projectId: string }) {
           ]}
           size="large"
         />
-        <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>
-          新增素材
-        </Button>
+        <Space>
+          <Button icon={<RobotOutlined />} onClick={handleAiGenerate}>
+            AI 生成素材
+          </Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={openCreateModal}>
+            新增素材
+          </Button>
+        </Space>
       </div>
 
       {filtered.length === 0 ? (
@@ -328,6 +355,25 @@ export default function AssetList({ projectId }: { projectId: string }) {
           </Form.Item>
         </Form>
       </Modal>
+
+      {/* AI Generation Drawer */}
+      <Drawer
+        title="AI 生成素材清单"
+        open={aiDrawerOpen}
+        onClose={() => { setAiDrawerOpen(false); claude.abort(); }}
+        width={640}
+        destroyOnClose
+      >
+        <GenerationPanel
+          streamedText={claude.streamedText}
+          isGenerating={claude.isGenerating}
+          error={claude.error}
+          status={claude.status}
+          onAbort={claude.abort}
+          onApply={handleAiApply}
+          title="素材清单生成"
+        />
+      </Drawer>
     </div>
   );
 }
