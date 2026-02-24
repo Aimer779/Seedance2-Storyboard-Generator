@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { Card, Tag, Spin, Empty, Typography, message } from 'antd';
+import React, { useEffect, useState, useCallback } from 'react';
+import { Card, Spin, Empty, Typography, message, Select } from 'antd';
 import {
   FileTextOutlined, PictureOutlined, CameraOutlined,
   VideoCameraOutlined, PlayCircleOutlined,
@@ -33,17 +33,49 @@ const statusMap: Record<string, { icon: React.ReactNode; color: string; text: st
   needs_revision: { icon: <ExclamationCircleOutlined />, color: '#faad14', text: '需修改' },
 };
 
+const statusOptions = [
+  { label: '未开始', value: 'pending' },
+  { label: '进行中', value: 'in_progress' },
+  { label: '已完成', value: 'completed' },
+  { label: '需修改', value: 'needs_revision' },
+];
+
 export default function PipelineView({ projectId }: { projectId: string }) {
   const [stages, setStages] = useState<PipelineStageData[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetch(`/api/projects/${projectId}/pipeline`)
-      .then(res => res.json())
-      .then(data => setStages(Array.isArray(data) ? data : []))
-      .catch(() => message.error('获取流程状态失败'))
-      .finally(() => setLoading(false));
+  const fetchStages = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}/pipeline`);
+      const data = await res.json();
+      setStages(Array.isArray(data) ? data : []);
+    } catch {
+      message.error('获取流程状态失败');
+    } finally {
+      setLoading(false);
+    }
   }, [projectId]);
+
+  useEffect(() => { fetchStages(); }, [fetchStages]);
+
+  const updateStatus = async (stageName: string, newStatus: string) => {
+    try {
+      const res = await fetch(`/api/projects/${projectId}/pipeline/${stageName}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        message.error(data.error);
+        return;
+      }
+      message.success('状态已更新');
+      fetchStages();
+    } catch {
+      message.error('更新失败');
+    }
+  };
 
   if (loading) return <div style={{ textAlign: 'center', padding: 60 }}><Spin /></div>;
   if (stages.length === 0) return <Empty description="暂无流程数据" />;
@@ -73,12 +105,16 @@ export default function PipelineView({ projectId }: { projectId: string }) {
                   <div style={{ fontSize: 28, color: status.color, marginBottom: 8 }}>
                     {config?.icon}
                   </div>
-                  <Text strong style={{ display: 'block', marginBottom: 4 }}>
+                  <Text strong style={{ display: 'block', marginBottom: 8 }}>
                     {config?.label || stage.stage}
                   </Text>
-                  <Tag color={status.color} style={{ marginBottom: 8 }}>
-                    {status.icon} {status.text}
-                  </Tag>
+                  <Select
+                    value={stage.status}
+                    onChange={(val) => updateStatus(stage.stage, val)}
+                    options={statusOptions}
+                    style={{ width: '100%', marginBottom: 8 }}
+                    size="small"
+                  />
                   <Text type="secondary" style={{ display: 'block', fontSize: 11 }}>
                     {config?.description}
                   </Text>

@@ -11,6 +11,7 @@ export const projects = sqliteTable('projects', {
   episodeDuration: text('episode_duration').default('15秒'),
   totalEpisodes: integer('total_episodes').default(0),
   status: text('status', { enum: ['draft', 'in_progress', 'completed'] }).default('draft'),
+  markdownFormat: text('markdown_format', { enum: ['linchong', 'yashan'] }).default('linchong'),
   createdAt: text('created_at').default(sql`(datetime('now'))`),
   updatedAt: text('updated_at').default(sql`(datetime('now'))`),
 });

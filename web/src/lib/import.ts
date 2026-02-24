@@ -4,9 +4,10 @@ import { db } from '@/lib/db';
 import { projects, scripts, scriptEpisodes, assets, episodes, timeSlots, assetSlots, pipelineStages } from '@/lib/db/schema';
 import { parseScript, parseAssetList, parseEpisode } from '@/lib/markdown/parser';
 import { eq } from 'drizzle-orm';
+import type { MarkdownFormat } from '@/types';
 
 /** 项目根目录（web/ 的上级） */
-function getProjectRoot(): string {
+export function getProjectRoot(): string {
   return path.resolve(process.cwd(), '..');
 }
 
@@ -65,11 +66,16 @@ export async function importProject(folderName: string): Promise<number> {
 
   // 解析素材清单获取风格
   let parsedAssets = null;
+  let markdownFormat: MarkdownFormat = 'linchong';
   if (assetFile) {
     const assetMarkdown = fs.readFileSync(path.join(projectDir, assetFile), 'utf-8');
     parsedAssets = parseAssetList(assetMarkdown);
     if (!style && parsedAssets.stylePrefix) {
       style = parsedAssets.stylePrefix;
+    }
+    // 检测格式：崖山格式使用 > **画面描述** 引用块 + 代码块
+    if (assetMarkdown.includes('> **画面描述**') || assetMarkdown.includes('> **生成提示词**')) {
+      markdownFormat = 'yashan';
     }
   }
 
@@ -83,6 +89,7 @@ export async function importProject(folderName: string): Promise<number> {
     episodeDuration,
     totalEpisodes,
     status: 'completed',
+    markdownFormat,
   }).returning().get();
 
   const projectId = project.id;

@@ -1,3 +1,6 @@
+// Markdown 格式类型
+export type MarkdownFormat = 'linchong' | 'yashan';
+
 // 项目
 export interface Project {
   id: number;
@@ -9,6 +12,7 @@ export interface Project {
   episodeDuration: string;
   totalEpisodes: number;
   status: 'draft' | 'in_progress' | 'completed';
+  markdownFormat: MarkdownFormat;
   createdAt: string;
   updatedAt: string;
 }

@@ -2,11 +2,11 @@
 
 import React, { useEffect, useState } from 'react';
 import {
-  Card, Row, Col, Button, Typography, Tag, Space, Empty, message, Spin,
+  Card, Row, Col, Button, Typography, Tag, Space, Empty, message, Spin, Popconfirm,
 } from 'antd';
 import {
   ImportOutlined, PlusOutlined, VideoCameraOutlined,
-  PlayCircleOutlined,
+  PlayCircleOutlined, DeleteOutlined,
 } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 
@@ -66,6 +66,22 @@ export default function HomePage() {
     }
   };
 
+  const handleDelete = async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const res = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.error) {
+        message.error(data.error);
+        return;
+      }
+      message.success('项目已删除');
+      fetchProjects();
+    } catch {
+      message.error('删除失败');
+    }
+  };
+
   const statusMap: Record<string, { color: string; text: string }> = {
     draft: { color: 'default', text: '草稿' },
     in_progress: { color: 'processing', text: '制作中' },
@@ -93,7 +109,7 @@ export default function HomePage() {
           <Button
             type="primary"
             icon={<PlusOutlined />}
-            disabled
+            onClick={() => router.push('/projects/new')}
           >
             新建项目
           </Button>
@@ -106,12 +122,17 @@ export default function HomePage() {
         </div>
       ) : projects.length === 0 ? (
         <Empty
-          description="暂无项目，请点击「导入现有项目」开始"
+          description="暂无项目，请点击「导入现有项目」或「新建项目」开始"
           style={{ padding: 100 }}
         >
-          <Button type="primary" icon={<ImportOutlined />} onClick={handleImport} loading={importing}>
-            导入现有项目
-          </Button>
+          <Space>
+            <Button type="primary" icon={<ImportOutlined />} onClick={handleImport} loading={importing}>
+              导入现有项目
+            </Button>
+            <Button icon={<PlusOutlined />} onClick={() => router.push('/projects/new')}>
+              新建项目
+            </Button>
+          </Space>
         </Empty>
       ) : (
         <Row gutter={[16, 16]}>
@@ -127,9 +148,28 @@ export default function HomePage() {
                     <Title level={4} style={{ margin: 0, flex: 1 }} ellipsis>
                       {project.name}
                     </Title>
-                    <Tag color={statusMap[project.status]?.color || 'default'}>
-                      {statusMap[project.status]?.text || project.status}
-                    </Tag>
+                    <Space size={4}>
+                      <Tag color={statusMap[project.status]?.color || 'default'}>
+                        {statusMap[project.status]?.text || project.status}
+                      </Tag>
+                      <Popconfirm
+                        title="确认删除此项目？"
+                        description="删除后数据库记录将被清除"
+                        onConfirm={(e) => handleDelete(project.id, e as unknown as React.MouseEvent)}
+                        onCancel={(e) => e?.stopPropagation()}
+                        okText="删除"
+                        cancelText="取消"
+                        okButtonProps={{ danger: true }}
+                      >
+                        <Button
+                          type="text"
+                          size="small"
+                          icon={<DeleteOutlined />}
+                          danger
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </Popconfirm>
+                    </Space>
                   </div>
                 </div>
 

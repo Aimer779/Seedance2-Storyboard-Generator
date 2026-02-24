@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { assets } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import type { AssetType } from '@/types';
+import { syncAssetListFile } from '@/lib/fileSync';
 
 export async function GET(
   request: Request,
@@ -29,5 +30,38 @@ export async function GET(
     );
   } catch {
     return NextResponse.json({ error: '获取素材失败' }, { status: 500 });
+  }
+}
+
+export async function POST(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const projectId = parseInt(params.id);
+    const body = await request.json();
+
+    if (!body.code || !body.type) {
+      return NextResponse.json({ error: '素材编号和类型不能为空' }, { status: 400 });
+    }
+
+    const asset = db.insert(assets).values({
+      projectId,
+      code: body.code,
+      type: body.type,
+      name: body.name || '',
+      prompt: body.prompt || '',
+      description: body.description || '',
+      usedInEpisodes: JSON.stringify(body.usedInEpisodes || []),
+    }).returning().get();
+
+    syncAssetListFile(projectId);
+
+    return NextResponse.json({
+      ...asset,
+      usedInEpisodes: JSON.parse(asset.usedInEpisodes || '[]'),
+    }, { status: 201 });
+  } catch {
+    return NextResponse.json({ error: '新增素材失败' }, { status: 500 });
   }
 }

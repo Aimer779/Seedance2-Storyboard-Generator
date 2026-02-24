@@ -31,6 +31,7 @@ export function initializeDb() {
       episode_duration TEXT DEFAULT '15秒',
       total_episodes INTEGER DEFAULT 0,
       status TEXT DEFAULT 'draft',
+      markdown_format TEXT DEFAULT 'linchong',
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     );
@@ -105,6 +106,16 @@ export function initializeDb() {
       updated_at TEXT DEFAULT (datetime('now'))
     );
   `);
+
+  // Migration: add markdown_format column if missing
+  try {
+    const columns = sqlite.pragma('table_info(projects)') as Array<{ name: string }>;
+    if (!columns.find(c => c.name === 'markdown_format')) {
+      sqlite.exec(`ALTER TABLE projects ADD COLUMN markdown_format TEXT DEFAULT 'linchong'`);
+    }
+  } catch {
+    // ignore if table doesn't exist yet
+  }
 }
 
 // Auto-initialize on import
